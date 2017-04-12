@@ -1,5 +1,5 @@
   // Client ID and API key from the Developer Console
-  var CLIENT_ID = '500843274297-7fa10fv32jc3pgq4aa1222aerd7djoqj.apps.googleusercontent.com';
+  var CLIENT_ID = '500843274297-j89r2ke0mfhbae2d8b4rd77hfvrvhi1e.apps.googleusercontent.com';
 
   // Array of API discovery doc URLs for APIs used by the quickstart
   var DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest"];
@@ -14,7 +14,6 @@
   /**
    *  On load, called to load the auth2 library and API client library.
    */
-   var res;
   function handleClientLoad() {
     console.log("handle client load");
     gapi.load('client:auth2', initClient);
@@ -57,7 +56,8 @@
     if (isSignedIn) {
       authorizeButton.style.display = 'none';
       signoutButton.style.display = 'block';
-      listLabels();
+      //listLabels();
+      appendMessages();
     } else {
       authorizeButton.style.display = 'block';
       signoutButton.style.display = 'none';
@@ -108,6 +108,53 @@
         }
       } else {
         appendPre('No Labels found.');
+      }
+    });
+  }
+
+
+  function listMessages(userId, query, callback) {
+    var getPageOfMessages = function(request, result) {
+      request.execute(function(resp) {
+        result = result.concat(resp.messages);
+        var nextPageToken = resp.nextPageToken;
+        if (nextPageToken) {
+          request = gapi.client.gmail.users.messages.list({
+            'userId': userId,
+            'pageToken': nextPageToken,
+            'q': query
+          });
+          getPageOfMessages(request, result);
+        } else {
+          callback(result);
+        }
+      });
+    };
+    var initialRequest = gapi.client.gmail.users.messages.list({
+      'userId': userId,
+      'q': query
+    });
+    getPageOfMessages(initialRequest, []);
+  }
+
+  function appendMessages() {
+    listMessages('me', 'cs1320', function (result) {
+      if (result && result.length > 0) {
+        for (i = 0; i < result.length; i++) {
+          var message = result[i];
+          function getMessage(userId, messageId, callback) {
+            var request = gapi.client.gmail.users.messages.get({
+              'userId': userId,
+              'id': messageId
+            });
+            request.execute(callback);
+          }
+          getMessage('me', message.id, function (message) {
+            console.log(message);
+          });
+        }
+      } else {
+        appendPre('No result found.');
       }
     });
   }
