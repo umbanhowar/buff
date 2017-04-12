@@ -150,7 +150,7 @@
             request.execute(callback);
           }
           getMessage('me', message.id, function (message) {
-            console.log(message);
+            console.log(atob(message.payload.parts[0].body.data));
           });
         }
       } else {
