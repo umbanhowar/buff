@@ -1,3 +1,4 @@
+$(function () {
   // Client ID and API key from the Developer Console
   var CLIENT_ID = '500843274297-j89r2ke0mfhbae2d8b4rd77hfvrvhi1e.apps.googleusercontent.com';
 
@@ -78,39 +79,6 @@
     gapi.auth2.getAuthInstance().signOut();
   }
 
-  /**
-   * Append a pre element to the body containing the given message
-   * as its text node. Used to display the results of the API call.
-   *
-   * @param {string} message Text to be placed in pre element.
-   */
-  function appendPre(message) {
-    var pre = document.getElementById('content');
-    var textContent = document.createTextNode(message + '\n');
-    pre.appendChild(textContent);
-  }
-
-  /**
-   * Print all Labels in the authorized user's inbox. If no labels
-   * are found an appropriate message is printed.
-   */
-  function listLabels() {
-    gapi.client.gmail.users.labels.list({
-      'userId': 'me'
-    }).then(function(response) {
-      var labels = response.result.labels;
-      appendPre('Labels:');
-
-      if (labels && labels.length > 0) {
-        for (i = 0; i < labels.length; i++) {
-          var label = labels[i];
-          appendPre(label.name)
-        }
-      } else {
-        appendPre('No Labels found.');
-      }
-    });
-  }
 
 
   function listMessages(userId, query, callback) {
@@ -137,24 +105,82 @@
     getPageOfMessages(initialRequest, []);
   }
 
+  function getMessage(userId, messageId, callback) {
+    var request = gapi.client.gmail.users.messages.get({
+      'userId': userId,
+      'id': messageId
+    });
+    request.execute(callback);
+  }
+
   function appendMessages() {
     listMessages('me', 'cs1320', function (result) {
       if (result && result.length > 0) {
         for (i = 0; i < result.length; i++) {
           var message = result[i];
-          function getMessage(userId, messageId, callback) {
-            var request = gapi.client.gmail.users.messages.get({
-              'userId': userId,
-              'id': messageId
-            });
-            request.execute(callback);
-          }
-          getMessage('me', message.id, function (message) {
-            console.log(atob(message.payload.parts[0].body.data));
-          });
+          // binding the index is kinda hacky, should really use promises
+          getMessage('me', message.id, function (idx, message) {
+            var iframe = document.createElement('iframe');
+            iframe.id = idx;
+            document.body.appendChild(iframe);
+            var ifr = $('#'+idx)[0];
+            ifr.contentDocument.write(getBody(message));
+
+          }.bind(null, i));
         }
       } else {
         appendPre('No result found.');
       }
     });
+
+    function getHeader(headers, index) {
+      var header = '';
+      $.each(headers, function(){
+        if(this.name === index){
+          header = this.value;
+        }
+      });
+      return header;
+    }
+
+    function getBody(message) {
+      var encodedBody = '';
+      if(typeof message.payload.parts === 'undefined')
+      {
+        encodedBody = message.payload.body.data;
+      }
+      else
+      {
+        console.log("elsed");
+        encodedBody = getHTMLPart(message.payload.parts);
+      }
+      encodedBody = encodedBody.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '');
+      return decodeURIComponent(escape(window.atob(encodedBody)));
+    }
+
+    function getHTMLPart(arr) {
+      for(var x = 0; x <= arr.length; x++)
+      {
+        if(typeof arr[x].parts === 'undefined')
+        {
+          // first check for html part
+          if(arr[x].mimeType === 'text/html')
+          {
+            return arr[x].body.data;
+          }
+          //however, if this is the only part and is plaintext
+          if(arr[x].mimeType === 'text/plain' && arr.length === 1)
+          {
+            return arr[x].body.data;
+          }
+        }
+        else
+        {
+          return getHTMLPart(arr[x].parts);
+        }
+      }
+      return '';
+      }
+
   }
+});
